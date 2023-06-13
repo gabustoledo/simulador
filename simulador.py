@@ -17,8 +17,7 @@ VEL_MAX_PUNTA = 5.56  # m/s 20km/h
 ACELERACION = VEL_MAX/30
 ACELERACION_PUNTA = VEL_MAX_PUNTA/20
 DESACELERACION = -VEL_MAX/4
-personaparadero = 0
-persona = 0
+
 
 class Autobus(Agent):
     def __init__(self, unique_id, model,x,y):
@@ -159,6 +158,8 @@ class Ciudad(Model):
     def __init__(self, N, M):
         self.num_paraderos = N
         self.num_semaforos = M
+        self.personaparadero = 0
+        self.personaenbus = 0
         self.grid = MultiGrid(400, 400, torus=True)
         # self.schedule = RandomActivation(self)
         self.schedule = RandomActivationByType(self)
@@ -202,8 +203,8 @@ class Ciudad(Model):
 
         self.datacollector = DataCollector(
             {
-                "Personas en paradero": lambda m: m.schedule.get_type_count(PERSONASENPARADERO),
-                "Personas en bus": lambda m: m.schedule.get_type_count(PERSONASENBUS)
+                "Personas en paradero": lambda m: m.schedule.get_type_count(self.personaparadero),
+                "Personas en bus": lambda m: m.schedule.get_type_count(self.personaenbus)
              }
             )
 
@@ -243,6 +244,9 @@ class Ciudad(Model):
         punta3 = datetime(2023, 6, 6, 18, 0)
         punta4 = datetime(2023, 6, 6, 19, 59)
 
+        print("Personas en paradero = ", self.personaparadero)
+        print("Personas en bus = ", self.personaenbus)
+        
         if( (self.hora_actual > baja1 and self.hora_actual < baja2) or (self.hora_actual > baja3 and self.hora_actual < baja4)):
             for paradero in self.paraderos:
                 if self.schedule.steps % 18 == 0:
@@ -256,7 +260,7 @@ class Ciudad(Model):
                     x_peaton = paradero_origen_cordenadas[0]
                     y_peaton = paradero_origen_cordenadas[1]
                     peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual)
-                    PERSONASENPARADERO = PERSONASENPARADERO + 1
+                    self.personaparadero = self.personaparadero + 1
                     self.peatones.append(peaton)
                     self.schedule.add(peaton)
                     paradero.cant_peatones += 1
@@ -273,7 +277,7 @@ class Ciudad(Model):
                     x_peaton = paradero_origen_cordenadas[0]
                     y_peaton = paradero_origen_cordenadas[1]
                     peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino)
-                    PERSONASENPARADERO = PERSONASENPARADERO + 1
+                    self.personaparadero = self.personaparadero + 1
                     self.peatones.append(peaton)
                     self.schedule.add(peaton)
                     paradero.cant_peatones += 1
@@ -290,7 +294,7 @@ class Ciudad(Model):
                     x_peaton = paradero_origen_cordenadas[0]
                     y_peaton = paradero_origen_cordenadas[1]
                     peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino)
-                    PERSONASENPARADERO = PERSONASENPARADERO + 1
+                    self.personaparadero = self.personaparadero + 1
                     self.peatones.append(peaton)
                     self.schedule.add(peaton)
                     paradero.cant_peatones += 1
@@ -366,12 +370,6 @@ class Ciudad(Model):
             movimiento_actual = 0
         
         return RECORRIDO[movimiento_actual],movimiento_actual
-
-    def count_personas_paradero():
-        return PERSONASENPARADERO
-
-    def count_personas_en_bus():
-        return PERSONASENBUS
 
 def agent_portrayal(agent):
     if agent is None:

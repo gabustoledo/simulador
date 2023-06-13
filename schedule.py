@@ -20,6 +20,5 @@ class RandomActivationByTypeFiltered(mesa.time.RandomActivationByType):
         """
         Returns the current number of agents of certain type in the queue that satisfy the filter function.
         """
-        numero = 0
 
         return numero
