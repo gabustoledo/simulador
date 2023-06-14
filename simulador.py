@@ -17,7 +17,7 @@ VEL_MAX_PUNTA = 5.56  # m/s 20km/h
 ACELERACION = VEL_MAX/30
 ACELERACION_PUNTA = VEL_MAX_PUNTA/20
 DESACELERACION = -VEL_MAX/4
-
+OCUPACIONPARADEROS = {}
 
 class Autobus(Agent):
     def __init__(self, unique_id, model,x,y):
@@ -40,6 +40,8 @@ class Autobus(Agent):
         else:
             Velocidad = VEL_MAX
             Accel = ACELERACION
+
+        
         nuevo = self.movimiento_actual
         if self.posicion in SEMAFOROS:
             agente = self.model.grid[self.posicion[0]][self.posicion[1]]
@@ -61,7 +63,36 @@ class Autobus(Agent):
                     self.velocidad_actual = 0
                     distancia = 0
                     nuevo = self.movimiento_actual
+                
+        elif self.posicion in PARADEROS:
+            agente = self.model.grid[self.posicion[0]][self.posicion[1]]
+            aux = agente[0]
+            if self.posicion == aux.posicion:
+                if aux.cant_peatones > 0:
+                    if aux.cant_peatones <= 5:
+                        self.ocupacion_actual += aux.cant_peatones
+                        # hay que modificar la cantidad de peatones en el paradero = 0
+                        # modificar la cantidad de personas en paradero del schedule
+                        # modificar la cantidad de personas en buses del schedule
+                    else:
+                        self.ocupacion_actual += 5
+                        # hay que modificar la cantidad de peatones en el paradero -5
+                        # modificar la cantidad de personas en paradero del schedule
+                        # modificar la cantidad de personas en buses del schedule
+                    self.velocidad_actual = 0
+                    distancia = 0
+                    nuevo = self.movimiento_actual
+                else:
+                    if self.velocidad_actual < Velocidad:
+                        self.velocidad_actual = self.velocidad_actual + Accel * 10
                     
+                    if self.velocidad_actual >= Velocidad:
+                        self.velocidad_actual = Velocidad
+                    distancia = self.velocidad_actual * 10 + 0.5 * Accel * 100
+                    self.distancia_total += distancia
+                    nuevo = int(self.distancia_total/44)
+                    if nuevo >= 612:
+                        nuevo = 0                    
         else:
             if self.velocidad_actual < Velocidad:
                 self.velocidad_actual = self.velocidad_actual + Accel * 10
@@ -199,19 +230,22 @@ class Ciudad(Model):
         #     agent_reporters={})
 
 
-        self.scheduleB = RandomActivationByTypeFiltered(self)
-
-        self.datacollector = DataCollector(
-            {
-                "Personas en paradero": lambda m: m.scheduleB.get_type_count(self.personaparadero),
-                "Personas en bus": lambda m: m.scheduleB.get_type_count(self.personaenbus)
-             }
-            )
+        
+    
+        
+        
+        # self.datacollector = DataCollector(
+        #     {
+        #         "Personas en paradero": lambda m: m.scheduleB.get_type_count(self.personaparadero),
+        #         "Personas en bus": lambda m: m.scheduleB.get_type_count(self.personaenbus)
+        #      }
+        #     )
+        
 
         self.running = True
 
     def step(self):
-        self.datacollector.collect(self)
+        # self.datacollector.collect(self)
         self.schedule.step()
         # Escenario real cada 10 min una micro
         #
@@ -244,8 +278,8 @@ class Ciudad(Model):
         punta3 = datetime(2023, 6, 6, 18, 0)
         punta4 = datetime(2023, 6, 6, 19, 59)
 
-        print("Personas en paradero = ", self.personaparadero)
-        print("Personas en bus = ", self.personaenbus)
+        #print("Personas en paradero = ", self.personaparadero)
+        #print("Personas en bus = ", self.personaenbus)
         
         if( (self.hora_actual > baja1 and self.hora_actual < baja2) or (self.hora_actual > baja3 and self.hora_actual < baja4)):
             for paradero in self.paraderos:
@@ -299,30 +333,31 @@ class Ciudad(Model):
                     self.schedule.add(peaton)
                     paradero.cant_peatones += 1
         
+
         # Realizar subida de personas
-        for autobus in self.autobuses:
-            # Verificar si el autobus esta en algun paradero
-            enParadero = False
-            if autobus.posicion in PARADEROS:
-                enParadero = True
-                paradero_indice = PARADEROS.index(autobus.posicion)
-            if(enParadero):
-                for peaton in self.peatones:
-                    # peaton_indice es para eliminar el peaton solo si se sube a la micro
-                    peaton_indice = self.peatones.index(peaton)
-                    # Si la micro esta en una posicione del peaton (Osea paradero)
-                    if(peaton.posicion == autobus.posicion):
-                        # Se resta el peaton del paradero y se suma al autobus
-                        autobus.ocupacion_actual += 1
-                        self.paraderos[paradero_indice].cant_peatones -= 1
-                        # Se agrega un destino a la micro y la hora en la que se subio, esto para obtener
-                        # la metrica de tiempo en que se demoro
-                        # Primero se extrae la cordenada del paradero
-                        paradero_indice_destino = peaton.paraderoDestino
-                        coordenada_paradero_destino = PARADEROS[paradero_indice_destino]
-                        autobus.destinos.append([coordenada_paradero_destino, self.hora_actual])
-                        # Y luego se elimina el peaton
-                        del self.peatones[peaton_indice]
+        # for autobus in self.autobuses:
+        #     # Verificar si el autobus esta en algun paradero
+        #     enParadero = False
+        #     if autobus.posicion in PARADEROS:
+        #         enParadero = True
+        #         paradero_indice = PARADEROS.index(autobus.posicion)
+        #     if(enParadero):
+        #         for peaton in self.peatones:
+        #             # peaton_indice es para eliminar el peaton solo si se sube a la micro
+        #             peaton_indice = self.peatones.index(peaton)
+        #             # Si la micro esta en una posicione del peaton (Osea paradero)
+        #             if(peaton.posicion == autobus.posicion):
+        #                 # Se resta el peaton del paradero y se suma al autobus
+        #                 autobus.ocupacion_actual += 1
+        #                 self.paraderos[paradero_indice].cant_peatones -= 1
+        #                 # Se agrega un destino a la micro y la hora en la que se subio, esto para obtener
+        #                 # la metrica de tiempo en que se demoro
+        #                 # Primero se extrae la cordenada del paradero
+        #                 paradero_indice_destino = peaton.paraderoDestino
+        #                 coordenada_paradero_destino = PARADEROS[paradero_indice_destino]
+        #                 autobus.destinos.append([coordenada_paradero_destino, self.hora_actual])
+        #                 # Y luego se elimina el peaton
+        #                 del self.peatones[peaton_indice]
                         
 
         """
@@ -422,13 +457,8 @@ ciudad = Ciudad(num_paraderos, num_semaforos)
 # Definir visualización
 grid = CanvasGrid(agent_portrayal, 400, 400, 2500, 2500)
 
-COLORS = {"Personas en paradero": "#00AA00", "Personas en bus": "#0000AA"}
-
-personas = PieChartModule([{"Label": label, "Color": color} for (label, color) in COLORS.items()])
-
-
 # Definir servidor de visualización
-server = ModularServer(Ciudad, [grid, personas], "Simulación de Transporte Urbano", {"N": num_paraderos, "M": num_semaforos})
+server = ModularServer(Ciudad, [grid], "Simulación de Transporte Urbano", {"N": num_paraderos, "M": num_semaforos})
 
 # Iniciar servidor de visualización
 server.port = 8521

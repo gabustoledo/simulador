@@ -1,74 +1,59 @@
 import random
-import matplotlib.pyplot as plt
+import pandas as pd
+from mesa.visualization.modules import ChartModule
+from mesa.visualization.ModularVisualization import ModularServer
 from mesa import Agent, Model
 from mesa.time import RandomActivation
-from mesa.space import MultiGrid
+from mesa.space import SingleGrid
 from mesa.datacollection import DataCollector
-from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.modules import CanvasGrid
 
-class MyAgent(Agent):
+# Definir el agente
+class SumAgent(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.attribute = 0
-
-    def receive_random_amount(self):
-        amount = random.randint(1, 10)
-        self.attribute += amount
+        self.suma = 0
 
     def step(self):
-        self.receive_random_amount()
+        if self.model.schedule.steps % 5 == 0:
+            if self.unique_id == 0:
+                self.suma += 3
+            else:
+                self.suma += 5
 
-def agent_portrayal(agent):
-    portrayal = {"Shape": "circle", "r": 0.5, "Filled": "true", "Color": "red"}
-    return portrayal
-
-class MyModel(Model):
+# Definir el modelo
+class SumModel(Model):
     def __init__(self, num_agents):
         self.num_agents = num_agents
         self.schedule = RandomActivation(self)
-        self.grid = MultiGrid(1, 1, False)
+        self.grid = SingleGrid(1, num_agents, torus=False)
 
         for i in range(self.num_agents):
-            a = MyAgent(i, self)
-            self.schedule.add(a)
-            self.grid.place_agent(a, (0, 0))
+            agent = SumAgent(i, self)
+            self.schedule.add(agent)
+            self.grid.place_agent(agent, (0, i))
 
-        self.datacollector = DataCollector(
-            model_reporters={"Agent Attribute": lambda m: [agent.attribute for agent in self.schedule.agents]}
-        )
+        self.datacollector = DataCollector(model_reporters={"Suma agente 0": lambda m: m.schedule.agents[0].suma,
+                                                            "Suma agente 1": lambda m: m.schedule.agents[1].suma})
 
     def step(self):
-        self.datacollector.collect(self)
         self.schedule.step()
+        self.datacollector.collect(self)
 
-def agent_attribute_histogram(model):
-    agent_attributes = model.datacollector.get_model_vars_dataframe()["Agent Attribute"].values[-1]
-    plt.hist(agent_attributes, bins=range(11), align='left', rwidth=0.8, color='blue')
-    plt.xlabel('Attribute Value')
-    plt.ylabel('Frequency')
-    plt.xticks(range(11))
-    plt.title('Agent Attribute Histogram')
+# Crear el modelo
+model = SumModel(num_agents=2)
 
-    # Save the histogram to a file (optional)
-    # plt.savefig('agent_attribute_histogram.png')
-
-    plt.show()
-
-# Crear el modelo con 3 agentes
-model = MyModel(3)
-
-# Definir el módulo de visualización para el grid
-grid = CanvasGrid(agent_portrayal, 1, 1, 300, 200)
+# Definir el gráfico de barras
+chart = ChartModule([{"Label": "Suma agente 0", "Color": "blue"},
+                     {"Label": "Suma agente 1", "Color": "red"}])
 
 # Crear el servidor de visualización
-server = ModularServer(MyModel, [grid], "My Model", {"num_agents": 3})
-
-# Agregar el evento del histograma
-server.schedule_repeating_event(agent_attribute_histogram, 1)
+server = ModularServer(SumModel,
+                       [chart],
+                       "SumModel",
+                       {"num_agents": 2})
 
 # Ejecutar el servidor de visualización
-server.port = 8522  # Puerto para acceder al servidor (puedes cambiarlo si lo deseas)
+server.port = 8522  # Puerto para acceder al servidor desde el navegador
 server.launch()
 
 
