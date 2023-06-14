@@ -17,7 +17,9 @@ VEL_MAX_PUNTA = 5.56  # m/s 20km/h
 ACELERACION = VEL_MAX/30
 ACELERACION_PUNTA = VEL_MAX_PUNTA/20
 DESACELERACION = -VEL_MAX/4
-tiempos_de_espera = [timedelta(seconds=300)]
+hora_global = datetime(2023, 6, 6, 6, 0)
+llego_primera_micro = True
+tiempos_de_espera = []
 
 # lista en autobus de 68 elementos, iniciada en 0, el aumento en cada elemento indica que en ese paradero
 # deben bajarse esa cantidad de peatones, al llegar a ese paradero se setea la lista del autobus y se resta de la ocupacion
@@ -27,7 +29,7 @@ def calculo_velocidad(velocidad_actual, velocidad_maxima, aceleracion, distancia
     # Por lo tanto si la velocidad actual es igual o mayor a la maxima, no es modificada.
     if velocidad_actual < velocidad_maxima:
         velocidad_actual = velocidad_actual + aceleracion * tiempo
-
+                    
     # Si la velocidad calculada es mayor a la maxima, es modificada y cambiada a la maxima disponible.
     if velocidad_actual >= velocidad_maxima:
         velocidad_actual = velocidad_maxima
@@ -55,7 +57,7 @@ class Autobus(Agent):
         self.posicion = (x,y)
         # self.distancia_total = 0
         self.distancia_total = self.movimiento_actual * 44 # Corresponde a la distancia inicial a partir desde el punto de inicio del recorrido [m]
-        self.destinos = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+        self.destinos = []
 
     def step(self):
         self.move()
@@ -72,7 +74,7 @@ class Autobus(Agent):
         else:
             Velocidad = VEL_MAX
             Accel = ACELERACION
-
+    
         # Al inicio de cada movimiento del autobus se comprueba si lo inicia estando en un semaforo o en paradero.
         # En caso de no estar en ninguno de ellos, se inicia el movimiento normalmente.
         nuevo = self.movimiento_actual
@@ -90,13 +92,13 @@ class Autobus(Agent):
             if self.posicion == aux.posicion:
                 if aux.Color == "green":
                     self.velocidad_actual, self.distancia_total, nuevo = calculo_velocidad(self.velocidad_actual,Velocidad,Accel,self.distancia_total, 10)
-
+                    
                 else:
                     # Caso en que el semaforo se encuentra en rojo el autobus no inicia movimiento.
                     self.velocidad_actual = 0
                     distancia = 0
                     nuevo = self.movimiento_actual
-
+                
         elif self.posicion in PARADEROS:
 
             # En caso de iniciar el movimiento en un paradero, se obtiene le agente correspondiente a esa posicion.
@@ -104,55 +106,55 @@ class Autobus(Agent):
 
             agente = self.model.grid[self.posicion[0]][self.posicion[1]]
             paraderos = [obj for obj in agente if isinstance(obj, Paradero)]
-            paradero = paraderos[0]
-            indice = PARADEROS.index(self.posicion)
+            agente = paraderos
+            aux = agente[0]
 
-            if self.posicion == paradero.posicion:
-                if paradero.cant_peatones > 0 and self.ocupacion_actual < self.ocupacion_maxima:
+            if self.posicion == aux.posicion:
+                if aux.cant_peatones > 0 and self.ocupacion_actual < self.ocupacion_maxima:
 
                     # Pasajero entran al autobus como maximo 5 en cada step.
                     # Por lo tanto si hay menos de 5 el autobus tiene la opcion de iniciar su movimiento en el mismo step,
                     # esto dependiendo de la cantidad de tiempo restante.
 
-                    if paradero.cant_peatones < 5:
+                    if aux.cant_peatones < 5:
 
-                        self.velocidad_actual, self.distancia_total, nuevo = calculo_velocidad(self.velocidad_actual,Velocidad,Accel,self.distancia_total, (5 - paradero.cant_peatones)*2)
-
-                        # Obtener el destino de los peatones que tengan este paradero,
-                        # solo obtenerlo para la cantidad "paradero.cant_peatones"
-                        agente_aux = self.model.grid[paradero.posicion[0]][paradero.posicion[1]]
-                        peatones = [obj for obj in agente_aux if isinstance(obj, Peaton)]
-                        for peaton in peatones:
-                            destino = peaton.paraderoDestino
-                            self.destinos[destino] += 1
-                            self.model.grid.remove_agent(peaton)
+                        self.velocidad_actual, self.distancia_total, nuevo = calculo_velocidad(self.velocidad_actual,Velocidad,Accel,self.distancia_total, (5 - aux.cant_peatones)*2)
 
                         # Son agregados los peatones al autobus.
                         # En el paradero es actualizada la cantidad.
-                        self.ocupacion_actual += paradero.cant_peatones
-                        paradero.cant_peatones = 0
-                        self.model.grid.move_agent(paradero, paradero.posicion)
+                        self.ocupacion_actual += aux.cant_peatones
+                        aux.cant_peatones = 0
+                        self.model.grid.move_agent(aux, aux.posicion)
+
+                        # Tiempos de espera-----------
+                         # Se calculan los tiempos de espera de cada peaton en cada micro (en minutos)
+
+                        #  La primera condición es que haya llegado al final la primera micro
+                        if(llego_primera_micro):
+                        # Se llaman a todos los agentes peatones.                        
+                            agentes = self.model.schedule.agents
+                            peatones = [obj for obj in agentes if isinstance(obj, Peaton)]
+                            # Se recorren todos los peatones.
+                            for peaton in peatones:
+                                # Se verifica que el peaton este en el paradero
+                                if(peaton.posicion == self.posicion and peaton.subio == False):
+                                    tiempo = peaton.horaLLegada - hora_global
+                                    tiempos_de_espera.append(tiempo)
+                                    peaton.subio = True
+                                    print(tiempos_de_espera)
+
+
+
+
+                        #----------------------
                     else:
-
-                        # Obtener el destino de los peatones que tengan este paradero,
-                        # solo obtenerlo para la cantidad "paradero.cant_peatones"
-                        agente_aux = self.model.grid[paradero.posicion[0]][paradero.posicion[1]]
-                        peatones = [obj for obj in agente_aux if isinstance(obj, Peaton)]
-                        for peaton in peatones:
-                            destino = peaton.paraderoDestino
-                            self.destinos[destino] += 1
-
-                            tiempo = peaton.horaLLegada - self.model.hora_actual
-                            tiempos_de_espera.append(abs(tiempo))
-
-                            self.model.grid.remove_agent(peaton)
 
                         # Son agregados los peatones al autobus.
                         # En el paradero es actualizada la cantidad.
                         # Como maximo 5 peatones por step.
                         self.ocupacion_actual += 5
-                        paradero.cant_peatones -= 5
-                        self.model.grid.move_agent(paradero, paradero.posicion)
+                        aux.cant_peatones -= 5
+                        self.model.grid.move_agent(aux, aux.posicion)
 
                         # Como ha utilizado la totalidad del tiempo del step
                         # el autobus no inicia su movimiento.
@@ -162,17 +164,6 @@ class Autobus(Agent):
                 else:
                     # De no haber pasajeros se inicia el movimiento normalmente.
                     self.velocidad_actual, self.distancia_total, nuevo = calculo_velocidad(self.velocidad_actual,Velocidad,Accel,self.distancia_total, 10)
-                
-                if self.destinos[indice] > 0:
-
-                    if self.destinos[indice] < 5:
-                        self.ocupacion_actual -= self.destinos[indice]
-                        self.destinos[indice] = 0
-                    else:
-                        self.ocupacion_actual -= self.destinos[indice]
-                        self.destinos[indice] -= 5
-                    if self.ocupacion_actual < 0:
-                        self.ocupacion_actual = 0
         else:
 
             # En caso de estar en una posicion en que no haya nada, inicia su movimiento con normalidad.
@@ -204,19 +195,6 @@ class Autobus(Agent):
                             self.distancia_total = nuevo * 44
                             self.velocidad_actual = 0
 
-                            # Obtener el destino de los peatones que tengan este paradero,
-                            # solo obtenerlo para la cantidad "paradero.cant_peatones"
-                            agente_aux = self.model.grid[agente[0].posicion[0]][agente[0].posicion[1]]
-                            peatones = [obj for obj in agente_aux if isinstance(obj, Peaton)]
-                            for peaton in peatones:
-                                destino = peaton.paraderoDestino
-                                self.destinos[destino] += 1
- 
-                                tiempo = peaton.horaLLegada - self.model.hora_actual
-                                tiempos_de_espera.append(abs(tiempo))
-
-                                self.model.grid.remove_agent(peaton)
-
                             if agente[0].cant_peatones <= 5:
                                 self.ocupacion_actual += agente[0].cant_peatones
 
@@ -229,21 +207,6 @@ class Autobus(Agent):
                                 self.model.grid.move_agent(agente[0], agente[0].posicion)
                         else:
                             i+=1
-                            
-                        indice = PARADEROS.index(agente[0].posicion)
-                        if self.destinos[indice] > 0:
-                            nuevo = i
-                            self.distancia_total = nuevo * 44
-                            self.velocidad_actual = 0
-
-                            if self.destinos[indice] < 5:
-                                self.ocupacion_actual -= self.destinos[indice]
-                                self.destinos[indice] = 0
-                            else:
-                                self.ocupacion_actual -= self.destinos[indice]
-                                self.destinos[indice] -= 5
-                            if self.ocupacion_actual < 0:
-                                self.ocupacion_actual = 0
             else:
                 i+=1
 
@@ -287,6 +250,8 @@ class Paradero(Agent):
     def step(self):
         pass
 
+
+
 class Semaforo(Agent):
     def __init__(self, unique_id, model, x, y):
         super().__init__(unique_id, model)
@@ -294,13 +259,16 @@ class Semaforo(Agent):
         self.Color = "red"
         self.timer = 2 + random.randint(1,10)
 
-    def step(self):        
+    def step(self):
+        #  pass
+        
         if self.Color == "green":
            if self.model.schedule.steps % 6 == 0 and self.model.schedule.steps != 0:
                self.Color = "red"
         else:
             if self.model.schedule.steps % self.timer == 0 and self.model.schedule.steps != 0:
-                self.Color = "green" if self.Color == "red" else "red"
+                self.Color = "green" if self.Color == "red" else "red"  
+        
 
 class Ciudad(Model):
     def __init__(self, N, M):
@@ -342,82 +310,17 @@ class Ciudad(Model):
             self.grid.place_agent(autobus, pos)
             self.schedule.add(autobus)
 
-        model_reporters = {}
-        agentes = self.schedule.agents
-        self.autobuses = [obj for obj in agentes if isinstance(obj, Autobus)]
-        paraderos = [obj for obj in agentes if isinstance(obj, Paradero)]
-        peatones = [obj for obj in agentes if isinstance(obj, Peaton)]
-        self.muestraParaderos = random.sample(paraderos, 5)
-        colores = ["red", "blue", "green", "yellow", "black", "grey"]
-                
-        for i in range(len(self.autobuses)):
-            model_reporters[f"Autobus {i}"] = lambda m, i=i: m.autobuses[i].ocupacion_actual
-
-        chart_description = [{"Label": f"Autobus {i}", "Color": colores[i]} for i in range(len(self.autobuses))]
-        self.chart = ChartModule(chart_description)
-
-        for i in range(len(self.muestraParaderos)):
-            model_reporters[f"Paradero {i}"] = lambda m, i=i: m.muestraParaderos[i].cant_peatones
-
-        #self.lista= [PARADEROS.index(self.muestraParaderos[i].posicion) for i in range(5)]
-    
-        chart_description = [{"Label": f"Paradero {i}", "Color": colores[i]} for i in range(len(self.muestraParaderos))]
-        self.chart2 = ChartModule(chart_description)
-        
-        self.minimo = min(tiempos_de_espera)
-        model_reporters["Minimo Tiempo de Espera"] = lambda model: model.minimo.total_seconds()
-
-        chart_description = [{"Label": "Minimo Tiempo de Espera", "Color": colores[0]}]
-        self.chart3 = ChartModule(chart_description)
-
-        self.maximo = max(tiempos_de_espera)
-        model_reporters["Maximo Tiempo de Espera"] = lambda model: model.maximo.total_seconds()
-
-        chart_description = [{"Label": "Maximo Tiempo de Espera", "Color": colores[1]}]
-        self.chart4 = ChartModule(chart_description)
-
-        self.promedio = tiempos_de_espera[0].total_seconds()
-        model_reporters["Promedio Tiempo de Espera"] = lambda model: model.promedio
-
-        chart_description = [{"Label": "Promedio Tiempo de Espera", "Color": colores[2]}]
-        self.chart5 = ChartModule(chart_description)
-        
-        self.cantidad_autobuses = len(self.autobuses)
-        model_reporters["Cantidad de Autobuses en la Simulacion"] = lambda model: model.cantidad_autobuses
-
-        chart_description = [{"Label": "Cantidad de Autobuses en la Simulacion", "Color": colores[3]}]
-        self.chart6 = ChartModule(chart_description)
-
-        self.datacollector = DataCollector(model_reporters=model_reporters)
-
         self.running = True
 
     def step(self):
-        self.datacollector.collect(self)
         self.schedule.step()
-
-        minimo = min(tiempos_de_espera)
-        maximo = max(tiempos_de_espera)
-
-        if (minimo.total_seconds() < self.minimo.total_seconds()):
-            self.minimo = minimo
-
-        if (maximo.total_seconds() > self.maximo.total_seconds()):
-            self.maximo = maximo
-
-        tiempo_segundo = 0
-        for tiempo in tiempos_de_espera:
-            tiempo_segundo += tiempo.total_seconds()
-        self.promedio = tiempo_segundo/len(tiempos_de_espera)
-
         # Escenario real cada 10 min una micro
         #
-        if self.schedule.steps % 30 == 0:
-            autobus = Autobus(self.schedule.get_agent_count(), self, 61, 369)
-            self.autobuses.append(autobus)
-            self.grid.place_agent(autobus, (61, 369))
-            self.schedule.add(autobus)
-            self.cantidad_autobuses += 1
+        # if self.schedule.steps % 60 == 0:
+        #     autobus = Autobus(self.schedule.get_agent_count(), self, 61, 369)
+        #     self.autobuses.append(autobus)
+        #     self.grid.place_agent(autobus, (61, 369))
+        #     self.schedule.add(autobus)
             
         # Actualizar la hora actual
         self.hora_actual += timedelta(seconds=10)
@@ -444,61 +347,104 @@ class Ciudad(Model):
         
         if( (self.hora_actual > baja1 and self.hora_actual < baja2) or (self.hora_actual > baja3 and self.hora_actual < baja4)):
             for paradero in self.paraderos:
-                if(random.random() < 0.25):    
-                    if self.schedule.steps % 6 == 0 and paradero.posicion != (356, 14):
-                        flag = True
-                        while flag:
-                            paradero_origen = PARADEROS.index(paradero.posicion)
-                            paradero_destino = random.randint(1, 67)
-                            if(paradero_origen < paradero_destino):
-                                flag = False
-                        paradero_origen_cordenadas = PARADEROS[paradero_origen]
-                        x_peaton = paradero_origen_cordenadas[0]
-                        y_peaton = paradero_origen_cordenadas[1]
-                        peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
-                        self.personaparadero = self.personaparadero + 1
-                        self.grid.place_agent(peaton, (x_peaton, y_peaton))
-                        self.peatones.append(peaton)
-                        self.schedule.add(peaton)
-                        paradero.cant_peatones += 1
+                if self.schedule.steps % 18 == 0:
+                    flag = True
+                    while flag:
+                        paradero_origen = random.randint(0, 66)
+                        paradero_destino = random.randint(1, 67)
+                        if(paradero_origen < paradero_destino):
+                            flag = False
+                    paradero_origen_cordenadas = PARADEROS[paradero_origen]
+                    x_peaton = paradero_origen_cordenadas[0]
+                    y_peaton = paradero_origen_cordenadas[1]
+                    peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
+                    self.personaparadero = self.personaparadero + 1
+                    self.peatones.append(peaton)
+                    self.schedule.add(peaton)
+                    paradero.cant_peatones += 1
         elif( (self.hora_actual > valle1 and self.hora_actual < valle2) or (self.hora_actual > valle3 and self.hora_actual < valle4)):
             for paradero in self.paraderos:
-                if(random.random() < 0.45):
-                    if self.schedule.steps % 4 == 0 and paradero.posicion != (356, 14):
-                        flag = True
-                        while flag:
-                            paradero_origen = PARADEROS.index(paradero.posicion)
-                            paradero_destino = random.randint(1, 67)
-                            if(paradero_origen < paradero_destino):
-                                flag = False
-                        paradero_origen_cordenadas = PARADEROS[paradero_origen]
-                        x_peaton = paradero_origen_cordenadas[0]
-                        y_peaton = paradero_origen_cordenadas[1]
-                        peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
-                        self.personaparadero = self.personaparadero + 1
-                        self.grid.place_agent(peaton, (x_peaton, y_peaton))
-                        self.peatones.append(peaton)
-                        self.schedule.add(peaton)
-                        paradero.cant_peatones += 1
+                if self.schedule.steps % 6 == 0:
+                    flag = True
+                    while flag:
+                        paradero_origen = random.randint(0, 66)
+                        paradero_destino = random.randint(1, 67)
+                        if(paradero_origen < paradero_destino):
+                            flag = False
+                    paradero_origen_cordenadas = PARADEROS[paradero_origen]
+                    x_peaton = paradero_origen_cordenadas[0]
+                    y_peaton = paradero_origen_cordenadas[1]
+                    peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
+                    self.personaparadero = self.personaparadero + 1
+                    self.peatones.append(peaton)
+                    self.schedule.add(peaton)
+                    paradero.cant_peatones += 1
         elif( (self.hora_actual > punta1 and self.hora_actual < punta2) or (self.hora_actual > punta3 and self.hora_actual < punta4)):
             for paradero in self.paraderos:
-                if(random.random() < 0.9):
-                    if self.schedule.steps % 2 == 0 and paradero.posicion != (356, 14):
-                        flag = True
-                        while flag:
-                            paradero_origen = PARADEROS.index(paradero.posicion)
-                            paradero_destino = random.randint(1, 67)
-                            if(paradero_origen < paradero_destino):
-                                flag = False
-                        paradero_origen_cordenadas = PARADEROS[paradero_origen]
-                        x_peaton = paradero_origen_cordenadas[0]
-                        y_peaton = paradero_origen_cordenadas[1]
-                        peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
-                        self.personaparadero = self.personaparadero + 1
-                        self.grid.place_agent(peaton, (x_peaton, y_peaton))
-                        self.peatones.append(peaton)
-                        self.schedule.add(peaton)
-                        paradero.cant_peatones += 1
+                if self.schedule.steps % 2 == 0:
+                    flag = True
+                    while flag:
+                        paradero_origen = random.randint(0, 66)
+                        paradero_destino = random.randint(1, 67)
+                        if(paradero_origen < paradero_destino):
+                            flag = False
+                    paradero_origen_cordenadas = PARADEROS[paradero_origen]
+                    x_peaton = paradero_origen_cordenadas[0]
+                    y_peaton = paradero_origen_cordenadas[1]
+                    peaton = Peaton(self.schedule.get_agent_count(), self, x_peaton, y_peaton, paradero_origen, paradero_destino, self.hora_actual, False)
+                    self.personaparadero = self.personaparadero + 1
+                    self.peatones.append(peaton)
+                    self.schedule.add(peaton)
+                    paradero.cant_peatones += 1
+        
+
+        # Realizar subida de personas
+        # for autobus in self.autobuses:
+        #     # Verificar si el autobus esta en algun paradero
+        #     enParadero = False
+        #     if autobus.posicion in PARADEROS:
+        #         enParadero = True
+        #         paradero_indice = PARADEROS.index(autobus.posicion)
+        #     if(enParadero):
+        #         for peaton in self.peatones:
+        #             # peaton_indice es para eliminar el peaton solo si se sube a la micro
+        #             peaton_indice = self.peatones.index(peaton)
+        #             # Si la micro esta en una posicione del peaton (Osea paradero)
+        #             if(peaton.posicion == autobus.posicion):
+        #                 # Se resta el peaton del paradero y se suma al autobus
+        #                 autobus.ocupacion_actual += 1
+        #                 self.paraderos[paradero_indice].cant_peatones -= 1
+        #                 # Se agrega un destino a la micro y la hora en la que se subio, esto para obtener
+        #                 # la metrica de tiempo en que se demoro
+        #                 # Primero se extrae la cordenada del paradero
+        #                 paradero_indice_destino = peaton.paraderoDestino
+        #                 coordenada_paradero_destino = PARADEROS[paradero_indice_destino]
+        #                 autobus.destinos.append([coordenada_paradero_destino, self.hora_actual])
+        #                 # Y luego se elimina el peaton
+        #                 del self.peatones[peaton_indice]
+                        
+
+        """
+        # Realizar bajada de personas
+        for autobus in self.autobuses:
+            # Verificar si el autobus esta en algun paradero
+            enParadero = False
+            if autobus.posicion in PARADEROS:
+                enParadero = True
+                paradero_indice = PARADEROS.index(autobus.posicion)
+                coordenada_paradero = PARADEROS[paradero_indice]
+            if(enParadero):
+                # Lista de destinos del autobus
+                destinos = autobus.destinos
+                # Comparar cordenadas del paradero con los de destino del bus                
+                for destino in destinos:
+                    if(destino[0] == coordenada_paradero):
+                        self.tiemposDeRecorrido.append(destino[1] - self.hora_actual)
+                        autobus.ocupacion_actual -= 1
+                    
+        
+        
+        """
 
     def count_moving_buses(self):
         return sum(1 for agent in self.schedule.agents if isinstance(agent, Autobus) and agent.velocidad_actual > 0)
@@ -562,8 +508,8 @@ ciudad = Ciudad(num_paraderos, num_semaforos)
 grid = CanvasGrid(agent_portrayal, 400, 400, 2500, 2500)
 
 # Definir servidor de visualización
-server = ModularServer(Ciudad, [grid, ciudad.chart, ciudad.chart2, ciudad.chart3, ciudad.chart4, ciudad.chart5, ciudad.chart6], "Simulación de Transporte Urbano", {"N": num_paraderos, "M": num_semaforos})
+server = ModularServer(Ciudad, [grid], "Simulación de Transporte Urbano", {"N": num_paraderos, "M": num_semaforos})
 
 # Iniciar servidor de visualización
-server.port = 8521
+server.port = 8523
 server.launch()

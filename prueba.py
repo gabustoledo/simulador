@@ -1,5 +1,3 @@
-import random
-import pandas as pd
 from mesa.visualization.modules import ChartModule
 from mesa.visualization.ModularVisualization import ModularServer
 from mesa import Agent, Model
@@ -17,8 +15,10 @@ class SumAgent(Agent):
         if self.model.schedule.steps % 5 == 0:
             if self.unique_id == 0:
                 self.suma += 3
-            else:
+            elif self.unique_id == 1:
                 self.suma += 5
+            else:
+                self.suma += 10
 
 # Definir el modelo
 class SumModel(Model):
@@ -32,29 +32,44 @@ class SumModel(Model):
             self.schedule.add(agent)
             self.grid.place_agent(agent, (0, i))
 
-        self.datacollector = DataCollector(model_reporters={"Suma agente 0": lambda m: m.schedule.agents[0].suma,
-                                                            "Suma agente 1": lambda m: m.schedule.agents[1].suma})
+        model_reporters = {}
+        agent2_3_data = [f"Suma agente {i}" for i in range(2, self.num_agents)]
+
+        for i in range(self.num_agents):
+            model_reporters[f"Suma agente {i}"] = lambda m, i=i: m.schedule.agents[i].suma
+
+        self.datacollector = DataCollector(model_reporters=model_reporters)
+        self.agent2_3_chart = ChartModule([{"Label": label, "Color": "green"} for label in agent2_3_data])
+
+        chart_description = [{"Label": f"Suma agente {i}", "Color": "blue"} for i in range(self.num_agents)]
+        self.chart = ChartModule(chart_description)
 
     def step(self):
         self.schedule.step()
         self.datacollector.collect(self)
 
 # Crear el modelo
-model = SumModel(num_agents=2)
-
-# Definir el gráfico de barras
-chart = ChartModule([{"Label": "Suma agente 0", "Color": "blue"},
-                     {"Label": "Suma agente 1", "Color": "red"}])
+model = SumModel(num_agents=3)  # Cambiar num_agents a 3 para incluir al agente 0, 1 y 2
 
 # Crear el servidor de visualización
 server = ModularServer(SumModel,
-                       [chart],
+                       [model.chart, model.agent2_3_chart],  # Agregar el gráfico del agente 2 y 3 al servidor
                        "SumModel",
-                       {"num_agents": 2})
+                       {"num_agents": 3})  # Cambiar num_agents a 3
 
 # Ejecutar el servidor de visualización
 server.port = 8522  # Puerto para acceder al servidor desde el navegador
 server.launch()
+
+
+
+
+
+
+
+
+
+
 
 
 
