@@ -199,12 +199,12 @@ class Ciudad(Model):
         #     agent_reporters={})
 
 
-        self.schedule = RandomActivationByTypeFiltered(self)
+        self.scheduleB = RandomActivationByTypeFiltered(self)
 
         self.datacollector = DataCollector(
             {
-                "Personas en paradero": lambda m: m.schedule.get_type_count(self.personaparadero),
-                "Personas en bus": lambda m: m.schedule.get_type_count(self.personaenbus)
+                "Personas en paradero": lambda m: m.scheduleB.get_type_count(self.personaparadero),
+                "Personas en bus": lambda m: m.scheduleB.get_type_count(self.personaenbus)
              }
             )
 
