@@ -299,7 +299,6 @@ class Ciudad(Model):
                     self.schedule.add(peaton)
                     paradero.cant_peatones += 1
         
-        """
         # Realizar subida de personas
         for autobus in self.autobuses:
             # Verificar si el autobus esta en algun paradero
@@ -324,7 +323,7 @@ class Ciudad(Model):
                         autobus.destinos.append([coordenada_paradero_destino, self.hora_actual])
                         # Y luego se elimina el peaton
                         del self.peatones[peaton_indice]
-        """
+                        
 
         """
         # Realizar bajada de personas
